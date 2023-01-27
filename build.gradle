@@ -1,0 +1,102 @@
+buildscript {
+	ext {
+		cxfVersion= '4.0.0'
+		xjcVersion= '4.0.0'
+		jaxbOutputDir = "$buildDir/generated/cxf"
+		jaxb2BasicsVersion = '0.11.0'
+	}
+}
+
+plugins {
+	id 'java'
+	id 'org.springframework.boot' version '2.7.6'
+	id 'io.spring.dependency-management' version '1.1.0'
+}
+
+group = 'com.administrator.issues'
+version = '0.0.1-SNAPSHOT'
+sourceCompatibility = '11'
+
+configurations {
+	cxf
+}
+
+repositories {
+	mavenCentral()
+	maven { url 'https://artifactory-oss.prod.netflix.net/artifactory/maven-oss-candidates' }
+}
+
+ext {
+	set('springCloudVersion', "2022.0.1")
+	set('testcontainersVersion', "1.17.6")
+}
+
+dependencies {
+
+	cxf "org.apache.cxf:cxf-tools-wsdlto-core:$cxfVersion"
+	cxf "org.apache.cxf:cxf-tools-wsdlto-frontend-jaxws:$cxfVersion"
+	cxf "org.apache.cxf:cxf-tools-wsdlto-databinding-jaxb:$cxfVersion"
+
+	cxf "org.jvnet.jaxb2_commons:jaxb2-fluent-api:3.0"
+	cxf "org.apache.cxf.xjcplugins:cxf-xjc-ts:$xjcVersion"
+
+	cxf "org.jvnet.jaxb2_commons:jaxb2-basics:$jaxb2BasicsVersion"
+
+	implementation 'org.apache.cxf.xjc-utils:cxf-xjc-runtime:4.0.0'
+	implementation 'org.jvnet.jaxb2_commons:jaxb2-basics-runtime:1.11.1'
+	implementation 'org.apache.commons:commons-lang3:3.12.0'
+
+	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+	implementation 'org.springframework.boot:spring-boot-starter-web'
+//	implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
+	runtimeOnly 'com.h2database:h2'
+	testImplementation 'org.springframework.boot:spring-boot-starter-test'
+	testImplementation 'org.testcontainers:junit-jupiter'
+
+}
+sourceSets {
+	main {
+		java {
+			srcDirs += "$jaxbOutputDir"
+		}
+	}
+}
+
+task wsdl2java(type: JavaExec) {
+	ext {
+		outputDir = file("$jaxbOutputDir")
+	}
+	systemProperties  = ['javax.xml.accessExternalSchema': 'file' , 'file.encoding':'UTF8']
+	outputs.upToDateWhen { false }
+	outputs.dir outputDir
+	main = 'org.apache.cxf.tools.wsdlto.WSDLToJava'
+	classpath = project.configurations.cxf
+	args '-d', outputDir
+	args '-fe', 'jaxws21'
+	args '-client'
+	args '-verbose'
+	args '-validate'
+	args '-mark-generated'
+//  args '-xjc-X'
+	args '-xjc-Xfluent-api'
+	args '-xjc-Xts'
+	args '-xjc-XhashCode'
+	args '-xjc-Xequals'
+	args '-b',"$projectDir/src/main/resources/jaxws-custom-bindings.xjb"
+	args "$projectDir/src/main/resources/wsdl/myWsdl.wsdl"
+	doLast {
+		println "----- cxf jaxb2 files generated -----"
+	}
+}
+
+
+dependencyManagement {
+	imports {
+		mavenBom "org.testcontainers:testcontainers-bom:${testcontainersVersion}"
+		mavenBom "org.springframework.cloud:spring-cloud-dependencies:${springCloudVersion}"
+	}
+}
+
+tasks.named('test') {
+	useJUnitPlatform()
+}
